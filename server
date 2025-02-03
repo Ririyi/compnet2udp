@@ -1,0 +1,71 @@
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+
+#include <winsock2.h>
+#include <windows.h>
+#include <string>
+#include <iostream>
+
+#pragma comment(lib, "Ws2_32.lib")
+#pragma warning(disable: 4996)
+
+using namespace std;
+
+#define PORT 666    // порт сервера
+#define sHELLO "Hello, STUDENT\n"
+
+int main() {
+    char buff[1024];
+    cout << "UDP DEMO ECHO-SERVER\n";
+
+    //подключение библиотеки
+    if (WSAStartup(MAKEWORD(2, 2), (WSADATA*)&buff[0])) {
+        cout << "WSAStartup error: " << WSAGetLastError();
+        return -1;
+    }
+
+    //сокет
+    SOCKET Lsock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (Lsock == INVALID_SOCKET) {
+        cout << "SOCKET() ERROR: " << WSAGetLastError();
+        WSACleanup();
+        return -1;
+    }
+
+    //связывание сокета с локальным адресом
+    sockaddr_in Laddr;
+    Laddr.sin_family = AF_INET;
+    Laddr.sin_addr.s_addr = INADDR_ANY;
+    Laddr.sin_port = htons(PORT);
+
+    if (bind(Lsock, (sockaddr*)&Laddr, sizeof(Laddr))) {
+        cout << "BIND ERROR: " << WSAGetLastError();
+        closesocket(Lsock);
+        WSACleanup();
+        return -1;
+    }
+
+    //обработка пакетов присланных клиентами
+    while (true) {
+        sockaddr_in Caddr;
+        int Caddr_size = sizeof(Caddr);
+        int bsize = recvfrom(Lsock, &buff[0], sizeof(buff) - 1, 0, (sockaddr*)&Caddr, &Caddr_size);
+
+        if (bsize == SOCKET_ERROR) {
+            cout << "RECVFROM() ERROR: " << WSAGetLastError();
+            continue;
+        }
+
+        HOSTENT* hst = gethostbyaddr((char*)&Caddr.sin_addr, 4, AF_INET);
+        cout << "NEW DATAGRAM!\n"
+            << ((hst) ? hst->h_name : "Unknown host") << "\n"
+            << inet_ntoa(Caddr.sin_addr) << "\n"
+            << ntohs(Caddr.sin_port) << '\n';
+
+        buff[bsize] = '\0';
+        cout << "C=>S: " << buff << '\n';
+
+        sendto(Lsock, &buff[0], bsize, 0, (sockaddr*)&Caddr, sizeof(Caddr));
+    }
+
+    return 0;
+};
